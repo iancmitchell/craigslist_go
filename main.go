@@ -10,7 +10,6 @@ import (
 //Parse out the individule posts on a Craigslist homepage
 func parseHTML(doc *http.Response) []string {
 	p := html.NewTokenizer(doc.Body)
-	log.Println(p)
 	var links []string
 
 	//Loop through the HTML doc passed
@@ -42,6 +41,21 @@ func parseHTML(doc *http.Response) []string {
 	}
 }
 
+func getPost(url string) string {
+	_, err := http.Get(url)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	return url + ":done"
+}
+
+func processPosts(posts <-chan string, results chan<- string) {
+	for p := range posts {
+		results <- getPost(p)
+	}
+}
+
 func main() {
 	url := "https://newyork.craigslist.org/search/brk/hhh"
 	res, err := http.Get(url)
@@ -51,5 +65,21 @@ func main() {
 
 	defer res.Body.Close()
 	parsedRes := parseHTML(res)
-	log.Println(parsedRes)
+	buffSize := len(parsedRes)
+	posts := make(chan string, buffSize)
+	results := make(chan string, buffSize)
+
+	go processPosts(posts, results)
+	go processPosts(posts, results)
+	go processPosts(posts, results)
+	go processPosts(posts, results)
+
+	for _, v := range parsedRes {
+		posts <- v
+	}
+	close(posts)
+	for i := 0; i < buffSize; i++ {
+		log.Println(i, <-results)
+
+	}
 }
